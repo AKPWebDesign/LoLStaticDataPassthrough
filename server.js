@@ -19,6 +19,8 @@ var express = require('express');
 var bodyParser = require('body-parser');
 var morgan = require('morgan');
 var request = require('request-json');
+var FileStreamRotator = require('file-stream-rotator');
+var fs = require('fs');
 var client = request.createClient("https://global.api.pvp.net");
 
 function Server(config) {
@@ -28,7 +30,7 @@ function Server(config) {
   this.server = require('http').Server(this.app);
 
   this.config = config;
-  this.port = process.env.PORT || this.config.serverWebPort || 8080; //Process-set port overrides config. If neither are there, use safe default.
+  this.port = process.env.PORT || this.config.port || 8080; //Process-set port overrides config. If neither are there, use safe default.
   this.api_key = this.config.RIOT_API_KEY;
 
   this.APIRouter = express.Router();
@@ -50,7 +52,9 @@ Server.prototype.setUpRoutes = function () {
     res.json({message: "Welcome to the LoL Static Data Passthrough API."});
   });
 
-  this.APIRouter.get('/champs', function(req, res) {
+  this.APIRouter.get('/champs/:region?*/:version?*', function(req, res) {
+    var region = req.params.region || "na";
+    var version = req.params.version || "v1.2";
     client.get(`/api/lol/static-data/${region}/${version}/champion?champData=all&api_key=${self.api_key}`, function(err, resp, body){
       if(err || (body.status && body.status.status_code !== 200)) {
         res.json({status:"Error"});
@@ -59,7 +63,9 @@ Server.prototype.setUpRoutes = function () {
     });
   });
 
-  this.APIRouter.get('/items', function(req, res) {
+  this.APIRouter.get('/items/:region?*/:version?*', function(req, res) {
+    var region = req.params.region || "na";
+    var version = req.params.version || "v1.2";
     client.get(`/api/lol/static-data/${region}/${version}/item?itemListData=all&api_key=${self.api_key}`, function(err, resp, body){
       if(err || (body.status && body.status.status_code !== 200)) {
         res.json({status:"Error"});
@@ -68,7 +74,9 @@ Server.prototype.setUpRoutes = function () {
     });
   });
 
-  this.APIRouter.get('/maps', function(req, res) {
+  this.APIRouter.get('/maps/:region?*/:version?*', function(req, res) {
+    var region = req.params.region || "na";
+    var version = req.params.version || "v1.2";
     client.get(`/api/lol/static-data/${region}/${version}/map?&api_key=${self.api_key}`, function(err, resp, body){
       if(err || (body.status && body.status.status_code !== 200)) {
         res.json({status:"Error"});
@@ -77,7 +85,9 @@ Server.prototype.setUpRoutes = function () {
     });
   });
 
-  this.APIRouter.get('/masteries', function(req, res) {
+  this.APIRouter.get('/masteries/:region?*/:version?*', function(req, res) {
+    var region = req.params.region || "na";
+    var version = req.params.version || "v1.2";
     client.get(`/api/lol/static-data/${region}/${version}/mastery?masteryListData=all&api_key=${self.api_key}`, function(err, resp, body){
       if(err || (body.status && body.status.status_code !== 200)) {
         res.json({status:"Error"});
@@ -86,7 +96,9 @@ Server.prototype.setUpRoutes = function () {
     });
   });
 
-  this.APIRouter.get('/spells', function(req, res) {
+  this.APIRouter.get('/spells/:region?*/:version?*', function(req, res) {
+    var region = req.params.region || "na";
+    var version = req.params.version || "v1.2";
     client.get(`/api/lol/static-data/${region}/${version}/summoner-spell?spellData=all&api_key=${self.api_key}`, function(err, resp, body){
       if(err || (body.status && body.status.status_code !== 200)) {
         res.json({status:"Error"});
@@ -95,7 +107,9 @@ Server.prototype.setUpRoutes = function () {
     });
   });
 
-  this.APIRouter.get('/versions', function(req, res) {
+  this.APIRouter.get('/versions/:region?*/:version?*', function(req, res) {
+    var region = req.params.region || "na";
+    var version = req.params.version || "v1.2";
     client.get(`/api/lol/static-data/${region}/${version}/realm?api_key=${self.api_key}`, function(err, resp, body){
       if(err || (body.status && body.status.status_code !== 200)) {
         res.json({status:"Error"});
@@ -126,3 +140,5 @@ Server.prototype.setUpLogging = function () {
   this.app.use(morgan('combined', {stream: accessLogStream}));
   this.app.use(morgan('combined', {stream: process.stdout}));
 };
+
+new Server(require("./config.json"));

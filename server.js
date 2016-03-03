@@ -114,7 +114,7 @@ Server.prototype.setUpRoutes = function () {
       if(err || (body.status && body.status.status_code !== 200)) {
         res.json({status:"Error"});
       }
-      res.json(body.data);
+      res.json(body);
     });
   });
 };

@@ -17,17 +17,13 @@
 
 var express = require('express');
 var bodyParser = require('body-parser');
-var morgan = require('morgan');
 var request = require('request-json');
-var FileStreamRotator = require('file-stream-rotator');
-var fs = require('fs');
 var Promise = require('bluebird');
 var client = request.createClient("https://global.api.pvp.net");
 client.headers["User-Agent"] = "AKPWebDesign/LoLStaticDataPassthrough <https://github.com/AKPWebDesign/LoLStaticDataPassthrough>";
 var region = "na";
 var version = "v1.2";
 var baseURL = `/api/lol/static-data/${region}/${version}`;
-var lastVersionTime;
 
 function Server(config) {
   this.data = {};
@@ -36,6 +32,7 @@ function Server(config) {
   this.port = process.env.PORT || this.config.port || 8080; //Process-set port overrides config. If neither are there, use safe default.
   if(!Array.isArray(this.port)) {this.port = [this.port];}
   this.api_key = this.config.RIOT_API_KEY;
+  this.lastVersionTime;
 
   for (var i = 0; i < this.port.length; i++) {
     var app = express();
@@ -45,14 +42,19 @@ function Server(config) {
 
     var apiRouter = express.Router();
     this.setUpRoutes(apiRouter);
-    this.setUpLogging(app);
 
     app.use('/', apiRouter);
-    app.use(morgan('combined')); //set up logging
 
     server.listen(this.port[i]);
     console.log("Listening on port " + this.port[i]);
   }
+  var self = this;
+  this.getData(`${baseURL}/realm?api_key=${this.api_key}`, "version").then(function(result) {
+    console.log(`Retrieved version data.`);
+    self.lastVersionTime = new Date().getTime();
+  }, function(error) {
+    console.error(error);
+  });
 }
 
 Server.prototype.getData = function (url, key) {
@@ -83,15 +85,19 @@ Server.prototype.checkVersionData = function () {
       resolve(false);
       return;
     }
-    if(lastVersionTime && (new Date().getTime() - lastVersionTime) > 600) {
-      resolve(true);
-      return;
+    if(self.lastVersionTime) {
+      var diff = new Date().getTime() - self.lastVersionTime;
+      if(diff < 1200000) {
+        resolve(true);
+        return;
+      }
     }
     client.get(`${baseURL}/realm?api_key=${self.api_key}`, function(err, resp, body){
       if(err || (body.status && body.status.status_code !== 200)) {
         reject(err);
         return;
       }
+      self.lastVersionTime = new Date().getTime();
       resolve(body.v == self.data.version.v);
       return;
     });
@@ -142,28 +148,6 @@ Server.prototype.setUpRoutes = function (apiRouter) {
       res.json(error);
     });
   });
-};
-
-/**
- * Sets up logging.
- */
-Server.prototype.setUpLogging = function (app) {
-  var logDirectory = __dirname + '/../log';
-
-  // ensure log directory exists
-  fs.existsSync(logDirectory) || fs.mkdirSync(logDirectory);
-
-  // create a rotating write stream
-  var accessLogStream = FileStreamRotator.getStream({
-    filename: logDirectory + '/access-%DATE%.log',
-    frequency: 'daily',
-    verbose: false,
-    date_format: "YYYY-MM-DD"
-  });
-
-  // setup the logger
-  app.use(morgan('combined', {stream: accessLogStream}));
-  app.use(morgan('combined', {stream: process.stdout}));
 };
 
 new Server(require("./config.json"));

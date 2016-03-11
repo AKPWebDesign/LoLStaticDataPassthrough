@@ -29,25 +29,29 @@ var version = "v1.2";
 var baseURL = `/api/lol/static-data/${region}/${version}`;
 
 function Server(config) {
-  this.app = express();
-  this.app.use(bodyParser.urlencoded({extended: true}));
-  this.app.use(bodyParser.json());
-  this.server = require('http').Server(this.app);
-
   this.data = {};
 
   this.config = config;
   this.port = process.env.PORT || this.config.port || 8080; //Process-set port overrides config. If neither are there, use safe default.
+  if(!Array.isArray(this.port)) {this.port = [this.port];}
   this.api_key = this.config.RIOT_API_KEY;
 
-  this.APIRouter = express.Router();
-  this.setUpRoutes();
-  this.setUpLogging();
-  this.app.use('/', this.APIRouter);
-  this.app.use(morgan('combined')); //set up logger for Express.
+  for (var i = 0; i < this.port.length; i++) {
+    var app = express();
+    app.use(bodyParser.urlencoded({extended: true}));
+    app.use(bodyParser.json());
+    var server = require('http').Server(app);
 
-  this.server.listen(this.port);
-  console.log("Listening on port " + this.port);
+    var apiRouter = express.Router();
+    this.setUpRoutes(apiRouter);
+    this.setUpLogging(app);
+
+    app.use('/', apiRouter);
+    app.use(morgan('combined')); //set up logging
+
+    server.listen(this.port[i]);
+    console.log("Listening on port " + this.port[i]);
+  }
 }
 
 Server.prototype.getData = function (url, key) {
@@ -92,13 +96,13 @@ Server.prototype.checkVersionData = function () {
 /**
  * Sets up routes for Express.
  */
-Server.prototype.setUpRoutes = function () {
+Server.prototype.setUpRoutes = function (apiRouter) {
   var self = this;
-  this.APIRouter.get('/', function(req, res) {
+  apiRouter.get('/', function(req, res) {
     res.json({message: "Welcome to the LoL Static Data Passthrough API."});
   });
 
-  this.APIRouter.get('/champs', function(req, res) {
+  apiRouter.get('/champs', function(req, res) {
     var url = `${baseURL}/champion?champData=image,skins,spells&api_key=${self.api_key}`;
     self.getData(url, "champion").then(function(result) {
       res.json(result.data);
@@ -107,7 +111,7 @@ Server.prototype.setUpRoutes = function () {
     });
   });
 
-  this.APIRouter.get('/items', function(req, res) {
+  apiRouter.get('/items', function(req, res) {
     var url = `${baseURL}/item?itemListData=consumed,gold,hideFromAll,image,inStore,into,maps,requiredChampion,sanitizedDescription,tags&api_key=${self.api_key}`;
     self.getData(url, "item").then(function(result) {
       res.json(result.data);
@@ -116,7 +120,7 @@ Server.prototype.setUpRoutes = function () {
     });
   });
 
-  this.APIRouter.get('/spells', function(req, res) {
+  apiRouter.get('/spells', function(req, res) {
     var url = `${baseURL}/summoner-spell?spellData=image,key,modes,sanitizedDescription&api_key=${self.api_key}`;
     self.getData(url, "spell").then(function(result) {
       res.json(result.data);
@@ -125,7 +129,7 @@ Server.prototype.setUpRoutes = function () {
     });
   });
 
-  this.APIRouter.get('/versions', function(req, res) {
+  apiRouter.get('/versions', function(req, res) {
     var url = `${baseURL}/realm?api_key=${self.api_key}`;
     self.getData(url, "version").then(function(result) {
       res.json(result);
@@ -138,7 +142,7 @@ Server.prototype.setUpRoutes = function () {
 /**
  * Sets up logging.
  */
-Server.prototype.setUpLogging = function () {
+Server.prototype.setUpLogging = function (app) {
   var logDirectory = __dirname + '/../log';
 
   // ensure log directory exists
@@ -153,8 +157,8 @@ Server.prototype.setUpLogging = function () {
   });
 
   // setup the logger
-  this.app.use(morgan('combined', {stream: accessLogStream}));
-  this.app.use(morgan('combined', {stream: process.stdout}));
+  app.use(morgan('combined', {stream: accessLogStream}));
+  app.use(morgan('combined', {stream: process.stdout}));
 };
 
 new Server(require("./config.json"));

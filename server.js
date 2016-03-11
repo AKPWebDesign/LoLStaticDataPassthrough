@@ -21,13 +21,20 @@ var morgan = require('morgan');
 var request = require('request-json');
 var FileStreamRotator = require('file-stream-rotator');
 var fs = require('fs');
+var Promise = require('bluebird');
 var client = request.createClient("https://global.api.pvp.net");
+client.headers["User-Agent"] = "AKPWebDesign/LoLStaticDataPassthrough <https://github.com/AKPWebDesign/LoLStaticDataPassthrough>";
+var region = "na";
+var version = "v1.2";
+var baseURL = `/api/lol/static-data/${region}/${version}`;
 
 function Server(config) {
   this.app = express();
   this.app.use(bodyParser.urlencoded({extended: true}));
   this.app.use(bodyParser.json());
   this.server = require('http').Server(this.app);
+
+  this.data = {};
 
   this.config = config;
   this.port = process.env.PORT || this.config.port || 8080; //Process-set port overrides config. If neither are there, use safe default.
@@ -43,6 +50,45 @@ function Server(config) {
   console.log("Listening on port " + this.port);
 }
 
+Server.prototype.getData = function (url, key) {
+  var self = this;
+  return new Promise(function(resolve, reject){
+    self.checkVersionData().then(function(result) {
+      if(!result || !self.data[key]) {
+        client.get(url, function(err, resp, body) {
+          if(err || (body.status && body.status.status_code !== 200)) {
+            reject(err);
+            return;
+          }
+          self.data[key] = body;
+          resolve(body);
+          return;
+        });
+      } else {
+        resolve(self.data[key]);
+      }
+    });
+  });
+};
+
+Server.prototype.checkVersionData = function () {
+  var self = this;
+  return new Promise(function(resolve, reject) {
+    if(!self.data || !self.data.version) {
+      resolve(false);
+      return;
+    }
+    client.get(`${baseURL}/realm?api_key=${self.api_key}`, function(err, resp, body){
+      if(err || (body.status && body.status.status_code !== 200)) {
+        reject(err);
+        return;
+      }
+      resolve(body.v == self.data.version.v);
+      return;
+    });
+  });
+};
+
 /**
  * Sets up routes for Express.
  */
@@ -52,69 +98,39 @@ Server.prototype.setUpRoutes = function () {
     res.json({message: "Welcome to the LoL Static Data Passthrough API."});
   });
 
-  this.APIRouter.get('/champs/:region?*/:version?*', function(req, res) {
-    var region = req.params.region || "na";
-    var version = req.params.version || "v1.2";
-    client.get(`/api/lol/static-data/${region}/${version}/champion?champData=all&api_key=${self.api_key}`, function(err, resp, body){
-      if(err || (body.status && body.status.status_code !== 200)) {
-        res.json({status:"Error"});
-      }
-      res.json(body.data);
+  this.APIRouter.get('/champs', function(req, res) {
+    var url = `${baseURL}/champion?champData=image,skins,spells&api_key=${self.api_key}`;
+    self.getData(url, "champion").then(function(result) {
+      res.json(result.data);
+    }, function(error) {
+      res.json(error);
     });
   });
 
-  this.APIRouter.get('/items/:region?*/:version?*', function(req, res) {
-    var region = req.params.region || "na";
-    var version = req.params.version || "v1.2";
-    client.get(`/api/lol/static-data/${region}/${version}/item?itemListData=all&api_key=${self.api_key}`, function(err, resp, body){
-      if(err || (body.status && body.status.status_code !== 200)) {
-        res.json({status:"Error"});
-      }
-      res.json(body.data);
+  this.APIRouter.get('/items', function(req, res) {
+    var url = `${baseURL}/item?itemListData=consumed,gold,hideFromAll,image,inStore,into,maps,requiredChampion,sanitizedDescription,tags&api_key=${self.api_key}`;
+    self.getData(url, "item").then(function(result) {
+      res.json(result.data);
+    }, function(error) {
+      res.json(error);
     });
   });
 
-  this.APIRouter.get('/maps/:region?*/:version?*', function(req, res) {
-    var region = req.params.region || "na";
-    var version = req.params.version || "v1.2";
-    client.get(`/api/lol/static-data/${region}/${version}/map?&api_key=${self.api_key}`, function(err, resp, body){
-      if(err || (body.status && body.status.status_code !== 200)) {
-        res.json({status:"Error"});
-      }
-      res.json(body.data);
+  this.APIRouter.get('/spells', function(req, res) {
+    var url = `${baseURL}/summoner-spell?spellData=image,key,modes,sanitizedDescription&api_key=${self.api_key}`;
+    self.getData(url, "spell").then(function(result) {
+      res.json(result.data);
+    }, function(error) {
+      res.json(error);
     });
   });
 
-  this.APIRouter.get('/masteries/:region?*/:version?*', function(req, res) {
-    var region = req.params.region || "na";
-    var version = req.params.version || "v1.2";
-    client.get(`/api/lol/static-data/${region}/${version}/mastery?masteryListData=all&api_key=${self.api_key}`, function(err, resp, body){
-      if(err || (body.status && body.status.status_code !== 200)) {
-        res.json({status:"Error"});
-      }
-      res.json(body.data);
-    });
-  });
-
-  this.APIRouter.get('/spells/:region?*/:version?*', function(req, res) {
-    var region = req.params.region || "na";
-    var version = req.params.version || "v1.2";
-    client.get(`/api/lol/static-data/${region}/${version}/summoner-spell?spellData=all&api_key=${self.api_key}`, function(err, resp, body){
-      if(err || (body.status && body.status.status_code !== 200)) {
-        res.json({status:"Error"});
-      }
-      res.json(body.data);
-    });
-  });
-
-  this.APIRouter.get('/versions/:region?*/:version?*', function(req, res) {
-    var region = req.params.region || "na";
-    var version = req.params.version || "v1.2";
-    client.get(`/api/lol/static-data/${region}/${version}/realm?api_key=${self.api_key}`, function(err, resp, body){
-      if(err || (body.status && body.status.status_code !== 200)) {
-        res.json({status:"Error"});
-      }
-      res.json(body);
+  this.APIRouter.get('/versions', function(req, res) {
+    var url = `${baseURL}/realm?api_key=${self.api_key}`;
+    self.getData(url, "version").then(function(result) {
+      res.json(result);
+    }, function(error) {
+      res.json(error);
     });
   });
 };

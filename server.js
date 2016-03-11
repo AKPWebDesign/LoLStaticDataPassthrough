@@ -36,6 +36,8 @@ function Server(config) {
   if(!Array.isArray(this.port)) {this.port = [this.port];}
   this.api_key = this.config.RIOT_API_KEY;
 
+  var lastVersionTime;
+
   for (var i = 0; i < this.port.length; i++) {
     var app = express();
     app.use(bodyParser.urlencoded({extended: true}));
@@ -65,6 +67,7 @@ Server.prototype.getData = function (url, key) {
             return;
           }
           self.data[key] = body;
+          self.data[key].cached = true;
           resolve(body);
           return;
         });
@@ -80,6 +83,10 @@ Server.prototype.checkVersionData = function () {
   return new Promise(function(resolve, reject) {
     if(!self.data || !self.data.version) {
       resolve(false);
+      return;
+    }
+    if(lastVersionTime && (new Date().getTime() - lastVersionTime) > 600) {
+      resolve(true);
       return;
     }
     client.get(`${baseURL}/realm?api_key=${self.api_key}`, function(err, resp, body){

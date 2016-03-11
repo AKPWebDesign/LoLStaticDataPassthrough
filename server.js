@@ -27,6 +27,7 @@ client.headers["User-Agent"] = "AKPWebDesign/LoLStaticDataPassthrough <https://g
 var region = "na";
 var version = "v1.2";
 var baseURL = `/api/lol/static-data/${region}/${version}`;
+var lastVersionTime;
 
 function Server(config) {
   this.data = {};
@@ -35,8 +36,6 @@ function Server(config) {
   this.port = process.env.PORT || this.config.port || 8080; //Process-set port overrides config. If neither are there, use safe default.
   if(!Array.isArray(this.port)) {this.port = [this.port];}
   this.api_key = this.config.RIOT_API_KEY;
-
-  var lastVersionTime;
 
   for (var i = 0; i < this.port.length; i++) {
     var app = express();
@@ -67,7 +66,6 @@ Server.prototype.getData = function (url, key) {
             return;
           }
           self.data[key] = body;
-          self.data[key].cached = true;
           resolve(body);
           return;
         });

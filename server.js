@@ -19,6 +19,7 @@ var express = require('express');
 var bodyParser = require('body-parser');
 var request = require('request-json');
 var Promise = require('bluebird');
+var morgan = require('morgan');
 var client = request.createClient("https://global.api.pvp.net");
 client.headers["User-Agent"] = "AKPWebDesign/LoLStaticDataPassthrough <https://github.com/AKPWebDesign/LoLStaticDataPassthrough>";
 var region = "na";
@@ -32,10 +33,18 @@ function Server(config) {
   this.port = process.env.PORT || this.config.port || 8080; //Process-set port overrides config. If neither are there, use safe default.
   if(!Array.isArray(this.port)) {this.port = [this.port];}
   this.api_key = this.config.RIOT_API_KEY;
-  this.lastVersionTime;
+  this.lastVersionTime = null;
+  morgan.token('forwarded', function (req) {
+    var addr = req.ip;
+    if(req.headers['x-forwarded-for']) {
+      addr = addr + ' - ' + req.headers['x-forwarded-for'];
+    }
+    return addr;
+  });
 
   for (var i = 0; i < this.port.length; i++) {
     var app = express();
+    app.use(morgan(':forwarded - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" - :response-time ms'));
     app.use(bodyParser.urlencoded({extended: true}));
     app.use(bodyParser.json());
     var server = require('http').Server(app);

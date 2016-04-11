@@ -15,6 +15,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+var pmx = require('pmx').init({
+  http          : true, // HTTP routes logging (default: true)
+  errors        : true, // Exceptions loggin (default: true)
+  custom_probes : true, // Auto expose JS Loop Latency and HTTP req/s as custom metrics
+  network       : true, // Network monitoring at the application level
+  ports         : true  // Shows which ports your app is listening on (default: false)
+});
+
 var express = require('express');
 var bodyParser = require('body-parser');
 var request = require('request-json');
@@ -44,6 +52,7 @@ function Server(config) {
 
   for (var i = 0; i < this.port.length; i++) {
     var app = express();
+    app.use(pmx.expressErrorHandler());
     app.use(morgan(':forwarded - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" - :response-time ms'));
     app.use(bodyParser.urlencoded({extended: true}));
     app.use(bodyParser.json());

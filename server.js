@@ -159,4 +159,10 @@ Server.prototype.setUpRoutes = function (apiRouter) {
   });
 };
 
-new Server(require("./config.json"));
+var config;
+
+try {
+  config = require('./config.json');
+} catch(e) {config = {}}
+
+new Server(config);

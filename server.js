@@ -15,14 +15,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-var pmx = require('pmx').init({
-  http          : true, // HTTP routes logging (default: true)
-  errors        : true, // Exceptions loggin (default: true)
-  custom_probes : true, // Auto expose JS Loop Latency and HTTP req/s as custom metrics
-  network       : true, // Network monitoring at the application level
-  ports         : true  // Shows which ports your app is listening on (default: false)
-});
-
 var express = require('express');
 var bodyParser = require('body-parser');
 var request = require('request-json');
@@ -38,9 +30,9 @@ function Server(config) {
   this.data = {};
 
   this.config = config;
-  this.port = process.env.PORT || this.config.port || 8080; //Process-set port overrides config. If neither are there, use safe default.
+  this.port = process.env.LSD_PORT || this.config.port || 8080; //Process-set port overrides config. If neither are there, use safe default.
   if(!Array.isArray(this.port)) {this.port = [this.port];}
-  this.api_key = this.config.RIOT_API_KEY;
+  this.api_key = process.env.LSD_RIOT_API_KEY || this.config.RIOT_API_KEY;
   this.lastVersionTime = null;
   morgan.token('forwarded', function (req) {
     var addr = req.ip;
@@ -52,7 +44,6 @@ function Server(config) {
 
   for (var i = 0; i < this.port.length; i++) {
     var app = express();
-    app.use(pmx.expressErrorHandler());
     app.use(morgan(':forwarded - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" - :response-time ms'));
     app.use(bodyParser.urlencoded({extended: true}));
     app.use(bodyParser.json());
